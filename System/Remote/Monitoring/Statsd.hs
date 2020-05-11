@@ -93,6 +93,10 @@ data StatsdOptions = StatsdOptions
       -- @takeWhile (/= \'.\') \<$\> getHostName@, using @getHostName@
       -- from the @Network.BSD@ module in the network package.
     , suffix :: !T.Text
+
+      -- | Function to apply to the metric name, before prefix, suffix
+      -- and the fixed suffixes for distributions.
+    , changeName :: !(T.Text -> T.Text)
     }
 
 -- | Defaults:
@@ -112,6 +116,7 @@ defaultStatsdOptions = StatsdOptions
     , debug         = False
     , prefix        = ""
     , suffix        = ""
+    , changeName    = id
     }
 
 -- | Create a thread that periodically flushes the metrics in the
@@ -175,7 +180,7 @@ time = (round . (* 1000000.0) . toDouble) `fmap` getPOSIXTime
 flushSample :: Metrics.Sample -> (B8.ByteString -> IO ()) -> StatsdOptions -> IO ()
 flushSample sample sendSample opts = do
     forM_ (M.toList sample) $ \ (name, val) ->
-        let fullName = dottedPrefix <> name <> dottedSuffix
+        let fullName = dottedPrefix <> changeName opts name <> dottedSuffix
         in  flushMetric fullName val
   where
     flushMetric name (Metrics.Counter n)      = send "|c" name (show n)
